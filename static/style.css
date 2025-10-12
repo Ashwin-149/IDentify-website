@@ -1,0 +1,62 @@
+.jumbotron {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.card {
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.display-1 {
+    font-size: 4rem;
+}
+
+.table th {
+    border-top: none;
+}
+
+.input-group-sm .form-control {
+    font-size: 0.875rem;
+}
+
+.alert {
+    border: none;
+    border-radius: 10px;
+}
+
+.navbar-brand {
+    font-weight: 600;
+}
+
+.card-header {
+    background: rgba(0,0,0,0.03);
+    border-bottom: 1px solid rgba(0,0,0,0.125);
+}
+.centered-container {
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    pointer-events: none;
+}
+
+.centered-container h1 {
+    font-size: 10rem;
+    text-align: center;
+    color: #0d6efd;
+    pointer-events: auto;
+    transform: translateY(-70px)
+}
+
+.centered-container h1 i {
+    font-size: 10rem;
+}
+header {
+    position: relative;
+    z-index: 10;
+}

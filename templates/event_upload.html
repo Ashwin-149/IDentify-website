@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-upload"></i> Event Upload</h2>
+        <p class="text-muted">Upload Excel sheet with registration numbers for event participation</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-file-earmark-excel"></i> Upload Excel File</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                        <div class="form-text">Enter event upload password</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="file" class="form-label">Excel File</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                        <div class="form-text">Upload .xlsx or .xls file with registration numbers in first column</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Upload
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-shield-lock"></i> Admin Actions</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('clear_event_data') }}" onsubmit="return confirm('Are you sure you want to clear all event data?')">
+                    <div class="mb-3">
+                        <label for="admin_password" class="form-label">Admin Password</label>
+                        <input type="password" class="form-control" id="admin_password" name="admin_password" required>
+                    </div>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Clear All Event Data
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="bi bi-list-ol"></i> Current Registrations</h5>
+                <span class="badge bg-primary">{{ registrations|length }} total</span>
+            </div>
+            <div class="card-body">
+                {% if registrations %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Registration Number</th>
+                                <th>Uploaded At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for reg in registrations %}
+                            <tr>
+                                <td>{{ reg.id }}</td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('edit_registration') }}" class="d-inline">
+                                        <input type="hidden" name="registration_id" value="{{ reg.id }}">
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" name="reg_number" value="{{ reg.reg_number }}" class="form-control">
+                                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                                <i class="bi bi-check"></i>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </td>
+                                <td>{{ reg.uploaded_at[:19] if reg.uploaded_at else 'N/A' }}</td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('delete_registration') }}" class="d-inline" 
+                                          onsubmit="return confirm('Delete this registration?')">
+                                        <input type="hidden" name="registration_id" value="{{ reg.id }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox display-1"></i>
+                    <p>No registrations uploaded yet</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

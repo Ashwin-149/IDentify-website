@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="bi bi-people"></i> Admit Data Upload</h2>
+        <p class="text-muted">Upload student admission data to the RFID database</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-file-earmark-excel"></i> Upload Student Data</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="password" class="form-label">
+                                    <i class="bi bi-shield-lock"></i> Admin Password
+                                </label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                                <div class="form-text">Enter admin password to upload data</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="file" class="form-label">
+                                    <i class="bi bi-file-earmark-excel"></i> Excel File
+                                </label>
+                                <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                                <div class="form-text">Upload .xlsx or .xls file</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-database-up"></i> Upload Student Data
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card border-info">
+            <div class="card-header">
+                <h6><i class="bi bi-info-circle"></i> Excel Format Required</h6>
+            </div>
+            <div class="card-body">
+                <p><strong>Required Columns:</strong></p>
+                <ul class="list-unstyled">
+                    <li><i class="bi bi-arrow-right text-primary"></i> <code>reg_number</code></li>
+                    <li><i class="bi bi-arrow-right text-primary"></i> <code>student_name</code></li>
+                    <li><i class="bi bi-arrow-right text-primary"></i> <code>email</code></li>
+                    <li><i class="bi bi-arrow-right text-primary"></i> <code>card_uid</code></li>
+                </ul>
+                
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Note:</strong> Existing records with same card_uid will be updated.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sample Excel Format -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-table"></i> Sample Excel Format</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>reg_number</th>
+                                <th>student_name</th>
+                                <th>email</th>
+                                <th>card_uid</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>2021001</td>
+                                <td>Rahul Kumar</td>
+                                <td>rahul.kumar@college.edu</td>
+                                <td>A1B2C3D4</td>
+                            </tr>
+                            <tr>
+                                <td>2021002</td>
+                                <td>Priya Sharma</td>
+                                <td>priya.sharma@college.edu</td>
+                                <td>12345678</td>
+                            </tr>
+                            <tr>
+                                <td>2021003</td>
+                                <td>Arjun Singh</td>
+                                <td>arjun.singh@college.edu</td>
+                                <td>BE8EECDB</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted mt-2">
+                    <i class="bi bi-lightbulb"></i> 
+                    Create your Excel file with these exact column names. The system will automatically handle duplicates and data validation.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Statistics -->
+<!--<div class="row mt-4">-->
+<!--    <div class="col-md-4">-->
+<!--        <div class="card border-primary">-->
+<!--            <div class="card-body text-center">-->
+<!--                <i class="bi bi-people-fill display-4 text-primary"></i>-->
+<!--                <h5>Total Students</h5>-->
+<!--                <h2 class="text-primary" id="student-count">Loading...</h2>-->
+<!--                <p class="text-muted">In database</p>-->
+<!--            </div>-->
+<!--        </div>-->
+<!--    </div>-->
+<!--    <div class="col-md-4">-->
+<!--        <div class="card border-success">-->
+<!--            <div class="card-body text-center">-->
+<!--                <i class="bi bi-check-circle-fill display-4 text-success"></i>-->
+<!--                <h5>Active Cards</h5>-->
+<!--                <h2 class="text-success" id="active-count">Loading...</h2>-->
+<!--                <p class="text-muted">Ready to use</p>-->
+<!--            </div>-->
+<!--        </div>-->
+<!--    </div>-->
+<!--</div>-->
+
+<!-- Recent Uploads -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="bi bi-clock-history"></i> Upload Instructions</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-1-circle-fill text-primary"></i> Prepare Your Excel File</h6>
+                        <ul>
+                            <li>Use the exact column names shown above</li>
+                            <li>Save as .xlsx or .xls format</li>
+                            <li>Ensure no empty rows between data</li>
+                            <li>Card UIDs should be in uppercase (e.g., BE8EECDB)</li>
+                        </ul>
+                        
+                        <h6><i class="bi bi-2-circle-fill text-success"></i> Upload Process</h6>
+                        <ul>
+                            <li>Enter admin password for security</li>
+                            <li>Select your prepared Excel file</li>
+                            <li>Click "Upload Student Data"</li>
+                            <li>Wait for confirmation message</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-3-circle-fill text-warning"></i> Data Handling</h6>
+                        <ul>
+                            <li>Duplicate card UIDs will be updated</li>
+                            <li>Invalid data rows will be skipped</li>
+                            <li>Batch processing for large files</li>
+                            <li>Automatic timestamp tracking</li>
+                        </ul>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Tip:</strong> Test with a small file first to ensure proper format.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load statistics
+async function loadStats() {
+    try {
+        // Total students
+        const studentResponse = await fetch('/api/student_count');
+        const studentData = await studentResponse.json();
+        document.getElementById('student-count').textContent = studentData.count || 0;
+        
+        // You can add more API endpoints for active cards and departments
+        document.getElementById('active-count').textContent = studentData.count || 0;
+        document.getElementById('dept-count').textContent = '5+'; // Static for now
+        
+    } catch (error) {
+        console.error('Error loading stats:', error);
+        document.getElementById('student-count').textContent = '--';
+        document.getElementById('active-count').textContent = '--';
+        document.getElementById('dept-count').textContent = '--';
+    }
+}
+
+// Load stats on page load
+document.addEventListener('DOMContentLoaded', loadStats);
+</script>
+{% endblock %}
