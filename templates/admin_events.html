@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Admin Events · IDentify{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3">
+  <i class="bi bi-gear fs-3 me-2 text-primary"></i>
+  <h2 class="m-0">Admin: Events</h2>
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title">Create Event</h5>
+        <form method="post" action="{{ url_for('admin_create_event') }}">
+          <div class="mb-3">
+            <label class="form-label">Admin Password<span class="text-danger">*</span></label>
+            <input name="password" type="password" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Title<span class="text-danger">*</span></label>
+            <input name="title" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="5"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Start (ISO or YYYY-MM-DD HH:MM)</label>
+            <input name="start_at" class="form-control" placeholder="2025-10-20 17:00">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">End</label>
+            <input name="end_at" class="form-control" placeholder="2025-10-20 19:00">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Location</label>
+            <input name="location" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Capacity (blank = unlimited)</label>
+            <input name="capacity" type="number" min="0" class="form-control">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Cover URL (optional)</label>
+            <input name="cover_url" class="form-control" placeholder="https://...">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Create</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title">All Events</h5>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>When</th>
+                <th>Active</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in events %}
+              <tr>
+                <td>{{ e.title }}</td>
+                <td>{{ e.start_at }}{% if e.end_at %} → {{ e.end_at }}{% endif %}</td>
+                <td>
+                  <span class="badge {{ 'bg-success' if e.is_active else 'bg-secondary' }}">
+                    {{ 'Yes' if e.is_active else 'No' }}
+                  </span>
+                </td>
+                <td>
+                  <a href="{{ url_for('event_detail', slug=e.slug) }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                    View
+                  </a>
+                  <form method="post" action="{{ url_for('admin_toggle_event', event_id=e.id) }}" class="d-inline ms-2">
+                    <div class="input-group input-group-sm" style="width:220px;">
+                      <input type="password" name="password" class="form-control" placeholder="Admin PW">
+                      <button type="submit" class="btn btn-outline-secondary">Toggle</button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+              {% endfor %}
+              {% if events|length == 0 %}
+              <tr><td colspan="4" class="text-muted">No events found.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

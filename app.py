@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from werkzeug.utils import secure_filename
+import re
+from datetime import timezone
 import pandas as pd
 import os
 from datetime import datetime
@@ -16,6 +18,9 @@ supabase: Client = create_client(app.config['SUPABASE_URL'], app.config['SUPABAS
 # Create uploads directory
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+def slugify(text: str) -> str:
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", (text or "").strip().lower()).strip("-")
+    return s[:80]
 
 def check_password(required_password):
     """Decorator to check password protection"""
@@ -234,6 +239,177 @@ def admit_upload():
 
     return render_template('admit_upload.html')
 
+@app.get('/events')
+def events_list():
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        q = supabase.table('events').select('*').eq('is_active', True)
+        events = q.order('start_at', desc=False).execute().data or []
+
+        ids = [e['id'] for e in events]
+        counts = {}
+        if ids:
+            reg_rows = supabase.table('event_registrations_user') \
+                .select('event_id') \
+                .in_('event_id', ids) \
+                .eq('status', 'registered') \
+                .execute().data or []
+            for r in reg_rows:
+                counts[r['event_id']] = counts.get(r['event_id'], 0) + 1
+
+        for e in events:
+            e['registered_count'] = counts.get(e['id'], 0)
+
+        return render_template('events.html', events=events)
+    except Exception as e:
+        flash(f'Error loading events: {e}', 'error')
+        return render_template('events.html', events=[])
+
+@app.get('/events/<slug>')
+def event_detail(slug):
+    try:
+        res = supabase.table('events').select('*').eq('slug', slug).single().execute()
+        event = res.data
+        if not event or not event.get('is_active', True):
+            flash('Event not found or inactive', 'error')
+            return redirect(url_for('events_list'))
+
+        regs = supabase.table('event_registrations_user') \
+            .select('id') \
+            .eq('event_id', event['id']) \
+            .eq('status', 'registered') \
+            .execute().data or []
+        registered_count = len(regs)
+
+        return render_template('event_detail.html', event=event, registered_count=registered_count)
+    except Exception as e:
+        flash(f'Error loading event: {e}', 'error')
+        return redirect(url_for('events_list'))
+
+@app.post('/events/<slug>/register')
+def event_register(slug):
+    reg_number = (request.form.get('reg_number') or '').strip().upper()
+    name = (request.form.get('name') or '').strip()
+    email = (request.form.get('email') or '').strip()
+
+    if not reg_number:
+        flash('Registration number is required', 'error')
+        return redirect(url_for('event_detail', slug=slug))
+
+    try:
+        ev_res = supabase.table('events').select('*').eq('slug', slug).single().execute()
+        event = ev_res.data
+        if not event or not event.get('is_active', True):
+            flash('Event not found or inactive', 'error')
+            return redirect(url_for('events_list'))
+
+        cap = event.get('capacity') or 0
+        current_regs = supabase.table('event_registrations_user') \
+            .select('id') \
+            .eq('event_id', event['id']) \
+            .eq('status', 'registered') \
+            .execute().data or []
+        if cap > 0 and len(current_regs) >= cap:
+            flash('Event is full', 'error')
+            return redirect(url_for('event_detail', slug=slug))
+
+        existing = supabase.table('event_registrations_user') \
+            .select('id') \
+            .eq('event_id', event['id']) \
+            .eq('reg_number', reg_number) \
+            .execute().data
+        if existing:
+            flash('You already registered for this event', 'info')
+            return redirect(url_for('event_detail', slug=slug))
+
+        supabase.table('event_registrations_user').insert({
+            'event_id': event['id'],
+            'reg_number': reg_number,
+            'name': name,
+            'email': email,
+            'status': 'registered',
+            'registered_at': datetime.now().isoformat()
+        }).execute()
+
+        flash('Registration successful!', 'success')
+        return redirect(url_for('event_detail', slug=slug))
+    except Exception as e:
+        flash(f'Error registering: {e}', 'error')
+        return redirect(url_for('event_detail', slug=slug))
+
+
+@app.get('/admin/events')
+def admin_events():
+    events = []
+    try:
+        events = supabase.table('events').select('*').order('start_at', desc=False).execute().data or []
+    except Exception as e:
+        flash(f'Error loading events: {e}', 'error')
+    return render_template('admin_events.html', events=events)
+
+@app.post('/admin/events')
+def admin_create_event():
+    pw = request.form.get('password')
+    if pw != app.config.get('EVENT_ADMIN_PASSWORD'):
+        flash('Incorrect admin password', 'error')
+        return redirect(url_for('admin_events'))
+
+    title = (request.form.get('title') or '').strip()
+    description = (request.form.get('description') or '').strip()
+    start_at = (request.form.get('start_at') or '').strip()
+    end_at = (request.form.get('end_at') or '').strip()
+    location = (request.form.get('location') or '').strip()
+    capacity = request.form.get('capacity')
+    cover_url = (request.form.get('cover_url') or '').strip()
+
+    if not title:
+        flash('Title is required', 'error')
+        return redirect(url_for('admin_events'))
+
+    slug = slugify(title)
+    try:
+        cap_val = int(capacity) if capacity else None
+    except:
+        cap_val = None
+
+    try:
+        supabase.table('events').insert({
+            'title': title,
+            'slug': slug,
+            'description': description,
+            'start_at': start_at or None,
+            'end_at': end_at or None,
+            'location': location,
+            'capacity': cap_val,
+            'cover_url': cover_url,
+            'is_active': True
+        }).execute()
+        flash('Event created', 'success')
+    except Exception as e:
+        flash(f'Error creating event: {e}', 'error')
+
+    return redirect(url_for('admin_events'))
+
+@app.post('/admin/events/<int:event_id>/toggle')
+def admin_toggle_event(event_id):
+    pw = request.form.get('password')
+    if pw != app.config.get('EVENT_ADMIN_PASSWORD'):
+        flash('Incorrect admin password', 'error')
+        return redirect(url_for('admin_events'))
+
+    try:
+        ev = supabase.table('events').select('*').eq('id', event_id).single().execute().data
+        if not ev:
+            flash('Event not found', 'error')
+            return redirect(url_for('admin_events'))
+
+        new_state = not ev.get('is_active', True)
+        supabase.table('events').update({'is_active': new_state}).eq('id', event_id).execute()
+        flash('Event state updated', 'success')
+    except Exception as e:
+        flash(f'Error updating event: {e}', 'error')
+
+    return redirect(url_for('admin_events'))
 
 # @app.route('/api/event_count')
 # def event_count():
