@@ -7,7 +7,8 @@ import os
 from datetime import datetime
 from supabase import create_client, Client
 from config import Config
-import json
+
+
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -17,6 +18,42 @@ supabase: Client = create_client(app.config['SUPABASE_URL'], app.config['SUPABAS
 
 # Create uploads directory
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Store images
+ALLOWED_IMG_EXTS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
+
+def is_allowed_image(filename: str) -> bool:
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in ALLOWED_IMG_EXTS
+
+def upload_to_supabase_storage(bucket: str, path: str, file_bytes: bytes, content_type: str):
+    storage = supabase.storage.from_(bucket)
+    try_path = path
+    idx = 1
+    while True:
+        try:
+            # Many supabase-py versions accept bytes as the second argument
+            storage.upload(
+                try_path,
+                file_bytes,
+                {"content-type": (content_type or "application/octet-stream")}
+            )
+            break
+        except Exception as e:
+            print(f"[upload] error uploading {try_path}: {e}")
+            # Handle only clear name conflicts; otherwise re-raise for visibility
+            if "exists" in str(e) or "409" in str(e):
+                base, ext = os.path.splitext(path)
+                try_path = f"{base}_{idx}{ext}"
+                idx += 1
+                if idx > 5:
+                    raise
+            else:
+                raise
+
+    public_url = storage.get_public_url(try_path)
+    return public_url
+
 
 def slugify(text: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9]+", "-", (text or "").strip().lower()).strip("-")
@@ -349,11 +386,13 @@ def admin_events():
 
 @app.post('/admin/events')
 def admin_create_event():
+    # 0) Basic auth check
     pw = request.form.get('password')
     if pw != app.config.get('EVENT_ADMIN_PASSWORD'):
         flash('Incorrect admin password', 'error')
         return redirect(url_for('admin_events'))
 
+    # 1) Read form fields
     title = (request.form.get('title') or '').strip()
     description = (request.form.get('description') or '').strip()
     start_at = (request.form.get('start_at') or '').strip()
@@ -369,14 +408,15 @@ def admin_create_event():
     slug = slugify(title)
     try:
         cap_val = int(capacity) if capacity else None
-    except:
+    except Exception:
         cap_val = None
 
+    # 2) Create the event first
     try:
-        supabase.table('events').insert({
+        ins = supabase.table('events').insert({
             'title': title,
             'slug': slug,
-            'description': description,
+            'description': description,  # may be appended with <img> below
             'start_at': start_at or None,
             'end_at': end_at or None,
             'location': location,
@@ -384,9 +424,85 @@ def admin_create_event():
             'cover_url': cover_url,
             'is_active': True
         }).execute()
-        flash('Event created', 'success')
+        if not ins or not ins.data or len(ins.data) == 0:
+            flash('Event creation failed: empty response', 'error')
+            return redirect(url_for('admin_events'))
+        event = ins.data[0]
+        print(f"[admin] event created id={event.get('id')} slug={event.get('slug')}")
     except Exception as e:
+        print(f"[admin] event insert error: {e}")
         flash(f'Error creating event: {e}', 'error')
+        return redirect(url_for('admin_events'))
+
+    # 3) Process image uploads
+    files = request.files.getlist('images')
+    print(f"[upload] received files: {len(files)}")
+    appended_html = ""
+    uploaded_any = False
+
+    for f in files:
+        if not f or f.filename.strip() == "":
+            continue
+
+        filename = secure_filename(f.filename)
+        ext = os.path.splitext(filename)[1].lower()
+        print(f"[upload] candidate file: {filename} mimetype={f.mimetype} ext={ext}")
+
+        # Validate extension
+        if ext not in ALLOWED_IMG_EXTS:
+            print(f"[upload] skipped non-image or unsupported ext: {filename}")
+            continue
+
+        # Read bytes
+        try:
+            content = f.read()
+        except Exception as e:
+            print(f"[upload] read error for {filename}: {e}")
+            continue
+
+        if not content:
+            print(f"[upload] empty content: {filename}")
+            continue
+
+        content_type = f.mimetype or 'application/octet-stream'
+        store_path = f"{slug}/{filename}"
+
+        try:
+            public_url = upload_to_supabase_storage(
+                app.config['EVENTS_BUCKET'],
+                store_path,
+                content,
+                content_type
+            )
+            print(f"[upload] uploaded url: {public_url}")
+        except Exception as e:
+            print(f"[upload] upload helper error for {store_path}: {e}")
+            public_url = None
+
+        if public_url:
+            uploaded_any = True
+            appended_html += (
+                f'\n<p><img src="{public_url}" alt="Event Image" '
+                f'style="max-width:100%;border-radius:8px;"></p>\n'
+            )
+
+    # 4) Update description only if images were uploaded
+    if uploaded_any and appended_html:
+        new_desc = (description or '') + "\n" + appended_html
+        try:
+            supabase.table('events').update({'description': new_desc}).eq('id', event['id']).execute()
+            print(f"[upload] description updated with images, total appended chars={len(appended_html)}")
+        except Exception as e:
+            print(f"[upload] description update error: {e}")
+            flash(f'Event created, but failed to attach images: {e}', 'error')
+            # Do not return; still show success for the event itself
+            return redirect(url_for('admin_events'))
+
+    # 5) Finalize
+    if uploaded_any:
+        flash('Event created with images!', 'success')
+    else:
+        flash('Event created. No images uploaded or accepted.', 'info')
 
     return redirect(url_for('admin_events'))
 

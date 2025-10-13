@@ -24,7 +24,8 @@
         <p><span class="badge bg-info text-dark">Capacity: {{ registered_count }}/{{ event.capacity }}</span></p>
         {% endif %}
         <hr>
-        <div style="white-space:pre-wrap">{{ event.description or '' }}</div>
+        <div>{{ event.description|safe }}</div>
+<!--        <div style="white-space:pre-wrap">{{ event.description or '' }}</div>-->
       </div>
     </div>
   </div>

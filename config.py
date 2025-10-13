@@ -10,6 +10,7 @@ class Config:
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'admin123'
     EVENT_PASSWORD = os.environ.get('EVENT_PASSWORD') or 'event123'
     UPLOAD_FOLDER = 'uploads'
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
-    EVENT_ADMIN_PASSWORD = "set-a-strong-password"  # temp password
+    EVENTS_BUCKET = "events"  # storage bucket name
+    MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 10MB max file size
+    EVENT_ADMIN_PASSWORD = "small"  # temp password
     SITE_NAME = "Your Club" #temp
