@@ -11,35 +11,82 @@
 <body>
     <!-- New Nav-Pills Header -->
     <div class="container">
-        <header class="d-flex justify-content-center py-3">
-            <ul class="nav nav-pills">
-                <li class="nav-item">
-                    <a href="{{ url_for('index') }}" class="nav-link {{ 'active' if request.endpoint == 'index' else '' }}"
-                       {{ 'aria-current="page"' if request.endpoint == 'index' else '' }}>
-                        <i class="bi bi-house"></i> Home
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{{ url_for('event_upload') }}" class="nav-link {{ 'active' if request.endpoint == 'event_upload' else '' }}"
-                       {{ 'aria-current="page"' if request.endpoint == 'event_upload' else '' }}>
-                        <i class="bi bi-upload"></i> Event Upload
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{{ url_for('scan_logs') }}" class="nav-link {{ 'active' if request.endpoint == 'scan_logs' else '' }}"
-                       {{ 'aria-current="page"' if request.endpoint == 'scan_logs' else '' }}>
-                        <i class="bi bi-list-ul"></i> Scan Logs
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{{ url_for('admit_upload') }}" class="nav-link {{ 'active' if request.endpoint == 'admit_upload' else '' }}"
-                       {{ 'aria-current="page"' if request.endpoint == 'admit_upload' else '' }}>
-                        <i class="bi bi-people"></i> Admit Data
-                    </a>
-                </li>
-            </ul>
-        </header>
+  <header class="d-flex justify-content-between align-items-center py-3">
+    <!-- Left: Brand -->
+    <a href="{{ url_for('index') }}" class="navbar-brand text-decoration-none text-primary fw-semibold">
+      <i class="bi bi-credit-card"></i> IDentify
+    </a>
+
+    <!-- Center: Nav pills -->
+    <ul class="nav nav-pills">
+      <li class="nav-item">
+        <a href="{{ url_for('index') }}"
+           class="nav-link {{ 'active' if request.endpoint == 'index' else '' }}"
+           {{ 'aria-current=\"page\"' if request.endpoint == 'index' else '' }}>
+          <i class="bi bi-house"></i> Home
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('events_list') }}"
+           class="nav-link {{ 'active' if request.endpoint == 'events_list' else '' }}"
+           {{ 'aria-current=\"page\"' if request.endpoint == 'events_list' else '' }}>
+          <i class="bi bi-calendar-event"></i> Events
+        </a>
+      </li>
+        {% if current_user.is_authenticated %}
+      <li class="nav-item">
+        <a href="{{ url_for('event_upload') }}"
+           class="nav-link {{ 'active' if request.endpoint == 'event_upload' else '' }}"
+           {{ 'aria-current=\"page\"' if request.endpoint == 'event_upload' else '' }}>
+          <i class="bi bi-upload"></i> Event Upload
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('scan_logs') }}"
+           class="nav-link {{ 'active' if request.endpoint == 'scan_logs' else '' }}"
+           {{ 'aria-current=\"page\"' if request.endpoint == 'scan_logs' else '' }}>
+          <i class="bi bi-list-ul"></i> Scan Logs
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="{{ url_for('admit_upload') }}"
+           class="nav-link {{ 'active' if request.endpoint == 'admit_upload' else '' }}"
+           {{ 'aria-current=\"page\"' if request.endpoint == 'admit_upload' else '' }}>
+          <i class="bi bi-people"></i> Admit Data
+        </a>
+      </li>
+        {% endif %}
+      {% if current_user.is_authenticated %}
+        <li class="nav-item">
+          <a href="{{ url_for('admin_events') }}"
+             class="nav-link {{ 'active' if request.endpoint == 'admin_events' else '' }}"
+             {{ 'aria-current=\"page\"' if request.endpoint == 'admin_events' else '' }}>
+            <i class="bi bi-gear"></i> Admin
+          </a>
+        </li>
+      {% endif %}
+    </ul>
+
+    <!-- Right: Auth controls -->
+    <div class="d-flex gap-2">
+      {% if not current_user.is_authenticated %}
+        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('admin_register_form') }}">
+          <i class="bi bi-person-plus"></i> Register
+        </a>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('admin_login_form') }}">
+          <i class="bi bi-box-arrow-in-right"></i> Login
+        </a>
+      {% else %}
+        <form method="post" action="{{ url_for('admin_logout') }}" class="d-inline m-0 p-0">
+          <button class="btn btn-warning btn-sm" type="submit">
+            <i class="bi bi-box-arrow-right"></i> Logout
+          </button>
+        </form>
+      {% endif %}
     </div>
+  </header>
+</div>
+
 
     <!-- Brand Title -->
     <div class="container text-center mb-4 centered-container">

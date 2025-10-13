@@ -13,10 +13,6 @@
         <h5 class="card-title">Create Event</h5>
         <form method="post" action="{{ url_for('admin_create_event') }}" enctype="multipart/form-data">
           <div class="mb-3">
-            <label class="form-label">Admin Password<span class="text-danger">*</span></label>
-            <input name="password" type="password" class="form-control" required>
-          </div>
-          <div class="mb-3">
             <label class="form-label">Title<span class="text-danger">*</span></label>
             <input name="title" class="form-control" required>
           </div>
@@ -82,13 +78,13 @@
                   <a href="{{ url_for('event_detail', slug=e.slug) }}" class="btn btn-outline-primary btn-sm" target="_blank">
                     View
                   </a>
+
+                  <!-- Toggle active  -->
                   <form method="post" action="{{ url_for('admin_toggle_event', event_id=e.id) }}" class="d-inline ms-2">
-                    <div class="input-group input-group-sm" style="width:220px;">
-                      <input type="password" name="password" class="form-control" placeholder="Admin PW">
-                      <button type="submit" class="btn btn-outline-secondary">Toggle</button>
-                    </div>
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Toggle</button>
                   </form>
                 </td>
+
               </tr>
               {% endfor %}
               {% if events|length == 0 %}

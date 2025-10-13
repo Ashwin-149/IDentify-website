@@ -7,11 +7,16 @@ import os
 from datetime import datetime
 from supabase import create_client, Client
 from config import Config
-
-
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+import re
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Initialize Login manager
+login_manager = LoginManager(app)
+login_manager.login_view = 'admin_login'
 
 # Initialize Supabase client
 supabase: Client = create_client(app.config['SUPABASE_URL'], app.config['SUPABASE_KEY'])
@@ -19,8 +24,30 @@ supabase: Client = create_client(app.config['SUPABASE_URL'], app.config['SUPABAS
 # Create uploads directory
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
+class AdminUser(UserMixin):
+    def __init__(self, row):
+        self.id = str(row['id'])
+        self.email = row['email']
+        self.is_active_flag = row.get('is_active', True)
+
+    def is_active(self):
+        return self.is_active_flag
+
+@login_manager.user_loader
+def load_user(user_id):
+    try:
+        res = supabase.table('admin_users').select('*').eq('id', int(user_id)).single().execute()
+        row = res.data
+        if not row:
+            return None
+        return AdminUser(row)
+    except Exception:
+        return None
+
 # Store images
 ALLOWED_IMG_EXTS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 def is_allowed_image(filename: str) -> bool:
     ext = os.path.splitext(filename)[1].lower()
@@ -76,23 +103,110 @@ def check_password(required_password):
 
     return decorator
 
-
 @app.route('/')
 def index():
     """Main dashboard page"""
     return render_template('index.html')
 
+@app.get('/admin/register')
+def admin_register_form():
+    # prevent showing register if already logged in
+    if current_user.is_authenticated:
+        return redirect(url_for('admin_events'))
+    return render_template('admin_register.html')
+
+@app.post('/admin/register')
+def admin_register():
+    secret = (request.form.get('secret_code') or '').strip()
+    email = (request.form.get('email') or '').strip().lower()
+    password = request.form.get('password') or ''
+    confirm = request.form.get('confirm_password') or ''
+
+    # Check secret code
+    if secret != app.config.get('ADMIN_REGISTRATION_CODE'):
+        flash('Invalid registration code.', 'error')
+        return redirect(url_for('admin_register_form'))
+
+    # Basic validation
+    if not EMAIL_RE.match(email):
+        flash('Please enter a valid email.', 'error')
+        return redirect(url_for('admin_register_form'))
+    if len(password) < 8:
+        flash('Password must be at least 8 characters.', 'error')
+        return redirect(url_for('admin_register_form'))
+    if password != confirm:
+        flash('Passwords do not match.', 'error')
+        return redirect(url_for('admin_register_form'))
+
+    # Ensure unique email
+    try:
+        existing = supabase.table('admin_users').select('id').eq('email', email).single().execute().data
+        if existing:
+            flash('An admin with this email already exists.', 'error')
+            return redirect(url_for('admin_register_form'))
+    except Exception:
+        # If select throws because not found, continue
+        pass
+
+    # Insert new admin with hashed password
+    try:
+        pwd_hash = generate_password_hash(password)
+        res = supabase.table('admin_users').insert({
+            'email': email,
+            'password_hash': pwd_hash,
+            'is_active': True
+        }).execute()
+        row = res.data[0]
+        # Auto-login after registration (optional)
+        user = AdminUser(row)
+        login_user(user, remember=True)
+        flash('Admin account created and logged in.', 'success')
+        return redirect(url_for('admin_events'))
+    except Exception as e:
+        flash(f'Registration error: {e}', 'error')
+        return redirect(url_for('admin_register_form'))
+
+@app.get('/admin/login')
+def admin_login_form():
+    if current_user.is_authenticated:
+        return redirect(url_for('admin_events'))
+    return render_template('admin_login.html')
+
+@app.post('/admin/login')
+def admin_login():
+    email = (request.form.get('email') or '').strip().lower()
+    password = request.form.get('password') or ''
+    try:
+        res = supabase.table('admin_users').select('*').eq('email', email).single().execute()
+        row = res.data
+        if not row or not row.get('is_active', True):
+            flash('Invalid credentials', 'error')
+            return redirect(url_for('admin_login_form'))
+        if not check_password_hash(row['password_hash'], password):
+            flash('Invalid credentials', 'error')
+            return redirect(url_for('admin_login_form'))
+        user = AdminUser(row)
+        login_user(user, remember=True)
+        flash('Logged in successfully', 'success')
+        next_url = request.args.get('next') or url_for('admin_events')
+        return redirect(next_url)
+    except Exception as e:
+        flash('Login error', 'error')
+        return redirect(url_for('admin_login_form'))
+
+@app.post('/admin/logout')
+@login_required
+def admin_logout():
+    logout_user()
+    flash('Logged out', 'success')
+    return redirect(url_for('admin_login_form'))
+
 
 @app.route('/event_upload', methods=['GET', 'POST'])
+@login_required
 def event_upload():
     """Event upload page - upload Excel with reg numbers"""
     if request.method == 'POST':
-        password = request.form.get('password')
-
-        if password != app.config['EVENT_PASSWORD']:
-            flash('Incorrect password!', 'error')
-            return render_template('event_upload.html')
-
         if 'file' not in request.files:
             flash('No file selected!', 'error')
             return render_template('event_upload.html')
@@ -139,14 +253,9 @@ def event_upload():
 
 
 @app.route('/clear_event_data', methods=['POST'])
+@login_required
 def clear_event_data():
     """Clear event registration data (admin only)"""
-    password = request.form.get('admin_password')
-
-    if password != app.config['ADMIN_PASSWORD']:
-        flash('Incorrect admin password!', 'error')
-        return redirect(url_for('event_upload'))
-
     try:
         supabase.table('event_registrations').delete().neq('id', 0).execute()
         flash('Event registration data cleared successfully!', 'success')
@@ -157,6 +266,7 @@ def clear_event_data():
 
 
 @app.route('/edit_registration', methods=['POST'])
+@login_required
 def edit_registration():
     """Edit individual registration number"""
     registration_id = request.form.get('registration_id')
@@ -174,6 +284,7 @@ def edit_registration():
 
 
 @app.route('/delete_registration', methods=['POST'])
+@login_required
 def delete_registration():
     """Delete individual registration"""
     registration_id = request.form.get('registration_id')
@@ -188,6 +299,7 @@ def delete_registration():
 
 
 @app.route('/scan_logs')
+@login_required
 def scan_logs():
     """View scan logs - separate for lost & found and event entry"""
     try:
@@ -212,15 +324,10 @@ def scan_logs():
 
 
 @app.route('/admit_upload', methods=['GET', 'POST'])
+@login_required
 def admit_upload():
     """Upload student admission data to database"""
     if request.method == 'POST':
-        password = request.form.get('password')
-
-        if password != app.config['ADMIN_PASSWORD']:
-            flash('Incorrect password!', 'error')
-            return render_template('admit_upload.html')
-
         if 'file' not in request.files:
             flash('No file selected!', 'error')
             return render_template('admit_upload.html')
@@ -376,6 +483,7 @@ def event_register(slug):
 
 
 @app.get('/admin/events')
+@login_required
 def admin_events():
     events = []
     try:
@@ -385,13 +493,8 @@ def admin_events():
     return render_template('admin_events.html', events=events)
 
 @app.post('/admin/events')
+@login_required
 def admin_create_event():
-    # 0) Basic auth check
-    pw = request.form.get('password')
-    if pw != app.config.get('EVENT_ADMIN_PASSWORD'):
-        flash('Incorrect admin password', 'error')
-        return redirect(url_for('admin_events'))
-
     # 1) Read form fields
     title = (request.form.get('title') or '').strip()
     description = (request.form.get('description') or '').strip()
@@ -507,12 +610,8 @@ def admin_create_event():
     return redirect(url_for('admin_events'))
 
 @app.post('/admin/events/<int:event_id>/toggle')
+@login_required
 def admin_toggle_event(event_id):
-    pw = request.form.get('password')
-    if pw != app.config.get('EVENT_ADMIN_PASSWORD'):
-        flash('Incorrect admin password', 'error')
-        return redirect(url_for('admin_events'))
-
     try:
         ev = supabase.table('events').select('*').eq('id', event_id).single().execute().data
         if not ev:

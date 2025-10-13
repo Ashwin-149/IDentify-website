@@ -11,6 +11,7 @@ class Config:
     EVENT_PASSWORD = os.environ.get('EVENT_PASSWORD') or 'event123'
     UPLOAD_FOLDER = 'uploads'
     EVENTS_BUCKET = "events"  # storage bucket name
+    ADMIN_REGISTRATION_CODE = os.environ.get('ADMIN_REGISTRATION_CODE') or 'RFID'
     MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 10MB max file size
     EVENT_ADMIN_PASSWORD = "small"  # temp password
     SITE_NAME = "Your Club" #temp

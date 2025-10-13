@@ -17,11 +17,6 @@
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                        <div class="form-text">Enter event upload password</div>
-                    </div>
-                    <div class="mb-3">
                         <label for="file" class="form-label">Excel File</label>
                         <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
                         <div class="form-text">Upload .xlsx or .xls file with registration numbers in first column</div>
@@ -41,10 +36,6 @@
             </div>
             <div class="card-body">
                 <form method="POST" action="{{ url_for('clear_event_data') }}" onsubmit="return confirm('Are you sure you want to clear all event data?')">
-                    <div class="mb-3">
-                        <label for="admin_password" class="form-label">Admin Password</label>
-                        <input type="password" class="form-control" id="admin_password" name="admin_password" required>
-                    </div>
                     <button type="submit" class="btn btn-danger">
                         <i class="bi bi-trash"></i> Clear All Event Data
                     </button>
