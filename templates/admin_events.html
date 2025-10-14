@@ -21,13 +21,14 @@
             <textarea name="description" class="form-control" rows="5"></textarea>
           </div>
           <div class="mb-3">
-            <label class="form-label">Start (ISO or YYYY-MM-DD HH:MM)</label>
-            <input name="start_at" class="form-control" placeholder="2025-10-20 17:00">
+            <label class="form-label">Start</label>
+            <input name="start_at" type="datetime-local" class="form-control">
           </div>
           <div class="mb-3">
             <label class="form-label">End</label>
-            <input name="end_at" class="form-control" placeholder="2025-10-20 19:00">
+            <input name="end_at" type="datetime-local" class="form-control">
           </div>
+
           <div class="mb-3">
             <label class="form-label">Location</label>
             <input name="location" class="form-control">
@@ -59,7 +60,7 @@
             <thead>
               <tr>
                 <th>Title</th>
-                <th>When</th>
+<!--                <th>When</th>-->
                 <th>Active</th>
                 <th>Actions</th>
               </tr>
@@ -68,22 +69,31 @@
               {% for e in events %}
               <tr>
                 <td>{{ e.title }}</td>
-                <td>{{ e.start_at }}{% if e.end_at %} → {{ e.end_at }}{% endif %}</td>
+<!--                <td>{{ e.start_pretty }}{% if e.end_pretty %} → {{ e.end_pretty }}{% endif %}</td>-->
                 <td>
                   <span class="badge {{ 'bg-success' if e.is_active else 'bg-secondary' }}">
                     {{ 'Yes' if e.is_active else 'No' }}
                   </span>
                 </td>
-                <td>
-                  <a href="{{ url_for('event_detail', slug=e.slug) }}" class="btn btn-outline-primary btn-sm" target="_blank">
-                    View
-                  </a>
+                <td class="text-nowrap">
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <a href="{{ url_for('event_detail', slug=e.slug) }}" class="btn btn-outline-primary btn-sm" target="_blank">
+                      View
+                    </a>
 
-                  <!-- Toggle active  -->
-                  <form method="post" action="{{ url_for('admin_toggle_event', event_id=e.id) }}" class="d-inline ms-2">
-                    <button type="submit" class="btn btn-outline-secondary btn-sm">Toggle</button>
-                  </form>
+                    <form method="post" action="{{ url_for('admin_toggle_event', event_id=e.id) }}" class="m-0 p-0">
+                      <button type="submit" class="btn btn-outline-secondary btn-sm">Toggle</button>
+                    </form>
+
+                    <form method="post"
+                          action="{{ url_for('admin_delete_event', event_id=e.id) }}"
+                          class="m-0 p-0"
+                          onsubmit="return confirm('Delete this event and related data? This cannot be undone.');">
+                      <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
+                    </form>
+                  </div>
                 </td>
+
 
               </tr>
               {% endfor %}

@@ -1,7 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response
 from werkzeug.utils import secure_filename
-import re
-from datetime import timezone
+from datetime import timezone, timedelta
 import pandas as pd
 import os
 from datetime import datetime
@@ -10,6 +9,8 @@ from config import Config
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
+from functools import wraps
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -44,6 +45,27 @@ def load_user(user_id):
     except Exception:
         return None
 
+@app.before_request
+def make_session_non_permanent():
+    session.permanent = False
+
+@app.after_request
+def add_no_cache_headers(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+def nocache(view):
+    @wraps(view)
+    def no_cache_wrapper(*args, **kwargs):
+        resp = make_response(view(*args, **kwargs))
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
+    return no_cache_wrapper
+
 # Store images
 ALLOWED_IMG_EXTS = {'.png', '.jpg', '.jpeg', '.webp', '.gif'}
 
@@ -59,7 +81,7 @@ def upload_to_supabase_storage(bucket: str, path: str, file_bytes: bytes, conten
     idx = 1
     while True:
         try:
-            # Many supabase-py versions accept bytes as the second argument
+
             storage.upload(
                 try_path,
                 file_bytes,
@@ -81,6 +103,75 @@ def upload_to_supabase_storage(bucket: str, path: str, file_bytes: bytes, conten
     public_url = storage.get_public_url(try_path)
     return public_url
 
+LOCAL_TZ = ZoneInfo("Asia/Kolkata")  # change if needed
+
+def pretty_dt(s: str) -> str:
+    if not s:
+        return ""
+    s = s.strip()
+    dt = None
+
+    # 1) Normalize common ISO variants
+    try:
+        # Handle trailing Z (UTC)
+        if s.endswith('Z'):
+            dt = datetime.fromisoformat(s[:-1] + '+00:00')
+        else:
+            dt = datetime.fromisoformat(s)
+    except ValueError:
+        pass
+
+    # 2) Try datetime-local formats
+    if dt is None:
+        for fmt in ("%Y-%m-%dT%H:%M",
+                    "%Y-%m-%dT%H:%M:%S",
+                    "%Y-%m-%d %H:%M",
+                    "%Y/%m/%d %H:%M"):
+            try:
+                dt = datetime.strptime(s, fmt)
+                break
+            except ValueError:
+                continue
+
+    # 3) Try ISO with milliseconds by trimming fractional seconds if present
+    if dt is None and '.' in s:
+        try:
+            s2 = s
+            # Trim fractional part but keep timezone if any
+            if '+' in s2:
+                base, tz = s2.split('+', 1)
+                s2 = base.split('.', 1)[0] + '+' + tz
+            elif 'Z' in s2:
+                base = s2.split('Z', 1)[0]
+                s2 = base.split('.', 1)[0] + 'Z'
+            else:
+                s2 = s2.split('.', 1)[0]
+            if s2.endswith('Z'):
+                dt = datetime.fromisoformat(s2[:-1] + '+00:00')
+            else:
+                dt = datetime.fromisoformat(s2)
+        except Exception:
+            pass
+
+    if dt is None:
+        # Last resort: show as-is so you can spot unexpected formats
+        return s
+
+    # 4) Convert to local tz for display
+    if dt.tzinfo is None:
+        dt_local = dt.replace(tzinfo=LOCAL_TZ)
+    else:
+        dt_local = dt.astimezone(LOCAL_TZ)
+
+    # 5) Cross-platform 12h hour without leading zero
+    hour_fmt = "%-I"  # Unix
+    try:
+        # Some Windows builds error on %-I
+        _ = dt_local.strftime(hour_fmt)
+    except Exception:
+        hour_fmt = "%#I"  # Windows
+
+    return dt_local.strftime(f"%d %b %Y {hour_fmt}:%M %p")
 
 def slugify(text: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9]+", "-", (text or "").strip().lower()).strip("-")
@@ -109,6 +200,8 @@ def index():
     return render_template('index.html')
 
 @app.get('/admin/register')
+@nocache
+@login_required
 def admin_register_form():
     # prevent showing register if already logged in
     if current_user.is_authenticated:
@@ -116,6 +209,8 @@ def admin_register_form():
     return render_template('admin_register.html')
 
 @app.post('/admin/register')
+@nocache
+@login_required
 def admin_register():
     secret = (request.form.get('secret_code') or '').strip()
     email = (request.form.get('email') or '').strip().lower()
@@ -198,9 +293,10 @@ def admin_login():
 @login_required
 def admin_logout():
     logout_user()
-    flash('Logged out', 'success')
-    return redirect(url_for('admin_login_form'))
-
+    resp = make_response(redirect(url_for('admin_login_form')))
+    # Force-remove remember cookie
+    resp.delete_cookie('remember_token', path='/', samesite='Lax')
+    return resp
 
 @app.route('/event_upload', methods=['GET', 'POST'])
 @login_required
@@ -254,6 +350,7 @@ def event_upload():
 
 @app.route('/clear_event_data', methods=['POST'])
 @login_required
+@nocache
 def clear_event_data():
     """Clear event registration data (admin only)"""
     try:
@@ -267,6 +364,7 @@ def clear_event_data():
 
 @app.route('/edit_registration', methods=['POST'])
 @login_required
+@nocache
 def edit_registration():
     """Edit individual registration number"""
     registration_id = request.form.get('registration_id')
@@ -285,6 +383,7 @@ def edit_registration():
 
 @app.route('/delete_registration', methods=['POST'])
 @login_required
+@nocache
 def delete_registration():
     """Delete individual registration"""
     registration_id = request.form.get('registration_id')
@@ -300,6 +399,7 @@ def delete_registration():
 
 @app.route('/scan_logs')
 @login_required
+@nocache
 def scan_logs():
     """View scan logs - separate for lost & found and event entry"""
     try:
@@ -325,6 +425,7 @@ def scan_logs():
 
 @app.route('/admit_upload', methods=['GET', 'POST'])
 @login_required
+@nocache
 def admit_upload():
     """Upload student admission data to database"""
     if request.method == 'POST':
@@ -403,6 +504,8 @@ def events_list():
 
         for e in events:
             e['registered_count'] = counts.get(e['id'], 0)
+            e['start_pretty'] = pretty_dt(e.get('start_at') or "")
+            e['end_pretty'] = pretty_dt(e.get('end_at') or "")
 
         return render_template('events.html', events=events)
     except Exception as e:
@@ -417,6 +520,8 @@ def event_detail(slug):
         if not event or not event.get('is_active', True):
             flash('Event not found or inactive', 'error')
             return redirect(url_for('events_list'))
+        event['start_pretty'] = pretty_dt(event.get('start_at') or "")
+        event['end_pretty'] = pretty_dt(event.get('end_at') or "")
 
         regs = supabase.table('event_registrations_user') \
             .select('id') \
@@ -484,6 +589,7 @@ def event_register(slug):
 
 @app.get('/admin/events')
 @login_required
+@nocache
 def admin_events():
     events = []
     try:
@@ -494,6 +600,7 @@ def admin_events():
 
 @app.post('/admin/events')
 @login_required
+@nocache
 def admin_create_event():
     # 1) Read form fields
     title = (request.form.get('title') or '').strip()
@@ -603,7 +710,7 @@ def admin_create_event():
 
     # 5) Finalize
     if uploaded_any:
-        flash('Event created with images!', 'success')
+        flash('Event created! ', 'success')
     else:
         flash('Event created. No images uploaded or accepted.', 'info')
 
@@ -611,6 +718,7 @@ def admin_create_event():
 
 @app.post('/admin/events/<int:event_id>/toggle')
 @login_required
+@nocache
 def admin_toggle_event(event_id):
     try:
         ev = supabase.table('events').select('*').eq('id', event_id).single().execute().data
@@ -625,6 +733,47 @@ def admin_toggle_event(event_id):
         flash(f'Error updating event: {e}', 'error')
 
     return redirect(url_for('admin_events'))
+
+@app.post('/admin/events/<int:event_id>/delete')
+@login_required
+def admin_delete_event(event_id):
+    try:
+        # Optional: fetch for storage cleanup
+        ev = supabase.table('events').select('id, slug').eq('id', event_id).single().execute().data
+        if not ev:
+            flash('Event not found', 'error')
+            return redirect(url_for('admin_events'))
+
+        # Optional storage cleanup under slug/ if you track files or can list by folder
+        # storage = supabase.storage.from_(app.config['EVENTS_BUCKET'])
+        # files = storage.list(path=ev['slug'])  # if client supports listing
+        # storage.remove([f"{ev['slug']}/{f['name']}" for f in files])
+
+        # Delete event row (ensure event_images has ON DELETE CASCADE if used)
+        supabase.table('events').delete().eq('id', event_id).execute()
+        flash('Event deleted', 'success')
+    except Exception as e:
+        flash(f'Error deleting event: {e}', 'error')
+
+    # Redirect back where the request came from
+    referer = request.headers.get('Referer') or url_for('admin_events')
+    return redirect(referer)
+
+@app.post('/events/<slug>/delete')
+@login_required
+def admin_delete_event_by_slug(slug):
+    try:
+        ev = supabase.table('events').select('id, slug').eq('slug', slug).single().execute().data
+        if not ev:
+            flash('Event not found', 'error')
+            return redirect(url_for('events_list'))
+
+        supabase.table('events').delete().eq('id', ev['id']).execute()
+        flash('Event deleted', 'success')
+        return redirect(url_for('events_list'))
+    except Exception as e:
+        flash(f'Error deleting event: {e}', 'error')
+        return redirect(url_for('event_detail', slug=slug))
 
 # @app.route('/api/event_count')
 # def event_count():
