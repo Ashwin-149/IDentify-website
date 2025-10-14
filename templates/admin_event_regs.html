@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h4>Registrations – {{ event.title }}</h4>
+<div class="mb-3">
+  <a class="btn btn-outline-secondary btn-sm"
+     href="{{ url_for('event_detail', slug=event.slug) }}">
+    Back
+  </a>
+  <a class="btn btn-outline-success btn-sm" href="{{ url_for('admin_export_regs_csv', event_id=event.id) }}">Export CSV</a>
+</div>
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Reg No.</th>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Status</th>
+      <th>Registered At</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in regs %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ r.reg_number or '-' }}</td>
+      <td>{{ r.name or '-' }}</td>
+      <td>{{ r.email or '-' }}</td>
+      <td>
+        <span class="badge {{ 'bg-success' if r.status=='registered' else 'bg-secondary' }}">
+          {{ r.status }}
+        </span>
+      </td>
+      <td>{{ r.registered_at }}</td>
+    </tr>
+    {% endfor %}
+    {% if regs|length == 0 %}
+    <tr><td colspan="6" class="text-muted">No registrations yet.</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+</div>
+{% endblock %}

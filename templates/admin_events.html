@@ -91,6 +91,7 @@
                           onsubmit="return confirm('Delete this event and related data? This cannot be undone.');">
                       <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
                     </form>
+                    <a href="{{ url_for('admin_edit_event_form', event_id=e.id) }}" class="btn btn-outline-warning btn-sm">Edit</a>
                   </div>
                 </td>
 

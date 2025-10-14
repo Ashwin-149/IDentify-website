@@ -11,6 +11,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import re
 from functools import wraps
 from zoneinfo import ZoneInfo
+import csv
+from io import StringIO
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -774,6 +776,97 @@ def admin_delete_event_by_slug(slug):
     except Exception as e:
         flash(f'Error deleting event: {e}', 'error')
         return redirect(url_for('event_detail', slug=slug))
+
+from flask_login import login_required
+from flask import render_template, request, redirect, url_for, flash
+
+@app.get('/admin/events/<int:event_id>/edit')
+@login_required
+def admin_edit_event_form(event_id):
+    ev = supabase.table('events').select('*').eq('id', event_id).single().execute().data
+    if not ev:
+        flash('Event not found', 'error')
+        return redirect(url_for('admin_events'))
+    return render_template('admin_event_edit.html', event=ev)
+
+@app.post('/admin/events/<int:event_id>/edit')
+@login_required
+def admin_edit_event(event_id):
+    title = (request.form.get('title') or '').strip()
+    slug = (request.form.get('slug') or '').strip()
+    desc = (request.form.get('description') or '').strip()
+    start_at = (request.form.get('start_at') or '').strip()
+    end_at = (request.form.get('end_at') or '').strip()
+    is_active = True if request.form.get('is_active') == 'on' else False
+
+    if not title:
+        flash('Title is required', 'error')
+        return redirect(url_for('admin_edit_event_form', event_id=event_id))
+
+    # Optional: enforce slug uniqueness if changed
+    if slug:
+        existing = supabase.table('events').select('id').eq('slug', slug).neq('id', event_id).execute().data or []
+        if existing:
+            flash('Slug already in use', 'error')
+            return redirect(url_for('admin_edit_event_form', event_id=event_id))
+
+    update_data = {
+        'title': title,
+        'description': desc,
+        'is_active': is_active,
+    }
+    if slug:
+        update_data['slug'] = slug
+    if start_at:
+        update_data['start_at'] = start_at  # keep same storage format you already use
+    if end_at:
+        update_data['end_at'] = end_at
+
+    supabase.table('events').update(update_data).eq('id', event_id).execute()
+    flash('Event updated', 'success')
+    return redirect(url_for('admin_events'))
+
+@app.get('/admin/events/<int:event_id>/registrations')
+@login_required
+def admin_event_registrations(event_id):
+    ev = supabase.table('events').select('id,title,slug').eq('id', event_id).single().execute().data
+    if not ev:
+        flash('Event not found', 'error')
+        return redirect(url_for('admin_events'))
+
+    regs = supabase.table('event_registrations_user') \
+        .select('id,event_id,reg_number,name,email,status,registered_at') \
+        .eq('event_id', event_id) \
+        .order('registered_at', desc=False) \
+        .execute().data or []
+
+    return render_template('admin_event_regs.html', event=ev, regs=regs)
+
+
+@app.get('/admin/events/<int:event_id>/registrations/export.csv')
+@login_required
+def admin_export_regs_csv(event_id):
+    regs = supabase.table('event_registrations_user') \
+        .select('reg_number,name,email,status,registered_at') \
+        .eq('event_id', event_id) \
+        .order('registered_at', desc=False) \
+        .execute().data or []
+
+    si = StringIO()
+    w = csv.writer(si)
+    w.writerow(['Reg Number', 'Name', 'Email', 'Status', 'Registered At'])
+    for r in regs:
+        w.writerow([
+            r.get('reg_number',''),
+            r.get('name',''),
+            r.get('email',''),
+            r.get('status',''),
+            r.get('registered_at',''),
+        ])
+    resp = make_response(si.getvalue())
+    resp.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    resp.headers['Content-Disposition'] = f'attachment; filename=registrations_event_{event_id}.csv'
+    return resp
 
 # @app.route('/api/event_count')
 # def event_count():

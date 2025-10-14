@@ -26,7 +26,7 @@
         {% endif %}
         <hr>
         <div>{{ event.description|safe }}</div>
-<!--        <div style="white-space:pre-wrap">{{ event.description or '' }}</div>-->
+
       </div>
     </div>
   </div>
@@ -54,14 +54,27 @@
     </div>
     <div>
       {% if current_user.is_authenticated %}
-        <form method="post"
-              action="{{ url_for('admin_delete_event_by_slug', slug=event.slug) }}"
-              onsubmit="return confirm('Delete this event? This cannot be undone.');">
-          <button type="submit" class="btn btn-outline-danger btn-sm">
-            <i class="bi bi-trash"></i> Delete Event
-          </button>
-        </form>
-    {% endif %}
+        <hr class="mt-4">
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <a class="btn btn-outline-success btn-sm"
+             href="{{ url_for('admin_event_registrations', event_id=event.id) }}">
+            <i class="bi bi-people"></i> View registrations
+          </a>
+
+          <a class="btn btn-outline-primary btn-sm"
+             href="{{ url_for('admin_export_regs_csv', event_id=event.id) }}">
+            <i class="bi bi-file-earmark-spreadsheet"></i> Export to Excel
+          </a>
+          <form method="post"
+                action="{{ url_for('admin_delete_event_by_slug', slug=event.slug) }}"
+                onsubmit="return confirm('Delete this event? This cannot be undone.');">
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+              <i class="bi bi-trash"></i> Delete Event
+            </button>
+          </form>
+        </div>
+
+      {% endif %}
     </div>
 
   </div>

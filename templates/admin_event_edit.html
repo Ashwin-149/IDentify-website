@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h4>Edit Event</h4>
+<form method="post" class="mt-3">
+  <div class="mb-3">
+    <label class="form-label">Title</label>
+    <input name="title" type="text" class="form-control" value="{{ event.title }}" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Slug (URL)</label>
+    <input name="slug" type="text" class="form-control" value="{{ event.slug }}" placeholder="optional">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Description</label>
+    <textarea name="description" rows="4" class="form-control">{{ event.description or '' }}</textarea>
+  </div>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Start</label>
+      <input name="start_at" type="datetime-local" class="form-control"
+             value="{{ (event.start_at|replace('Z','+00:00'))[:16] if event.start_at }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">End</label>
+      <input name="end_at" type="datetime-local" class="form-control"
+             value="{{ (event.end_at|replace('Z','+00:00'))[:16] if event.end_at }}">
+    </div>
+  </div>
+  <div class="form-check form-switch mt-3">
+    <input class="form-check-input" type="checkbox" name="is_active" id="is_active"
+           {% if event.is_active %}checked{% endif %}>
+    <label class="form-check-label" for="is_active">Active</label>
+  </div>
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary btn-sm" type="submit">Save</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_events') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -98,5 +98,41 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     {% block scripts %}{% endblock %}
+
+    <script>
+      // Auto-dismiss Bootstrap alerts after N milliseconds
+      window.addEventListener('DOMContentLoaded', function () {
+        const AUTO_DISMISS_MS = 4000; // 4 seconds; adjust as needed
+
+        // Select all alerts that are dismissible
+        document.querySelectorAll('.alert.alert-dismissible').forEach(function (alertEl) {
+          // Skip if explicitly marked to persist
+          if (alertEl.dataset.persist === 'true') return;
+
+          // Set a timer to close
+          setTimeout(function () {
+            // Use Bootstrap's built-in dismiss via the close button if available
+            const btn = alertEl.querySelector('.btn-close');
+            if (btn) {
+              btn.click();
+            } else {
+              // Fallback: fade out then remove
+              alertEl.classList.remove('show');
+              const removeAfter = () => alertEl.remove();
+              // Bootstrap fade uses .fade class; allow transition to finish
+              if (alertEl.classList.contains('fade')) {
+                alertEl.addEventListener('transitionend', removeAfter, { once: true });
+                // Force reflow to ensure transition runs
+                void alertEl.offsetWidth;
+                alertEl.classList.add('show'); // ensure proper class for transition
+                alertEl.classList.remove('show'); // then hide
+              } else {
+                setTimeout(removeAfter, 200);
+              }
+            }
+          }, AUTO_DISMISS_MS);
+        });
+      });
+    </script>
 </body>
 </html>
