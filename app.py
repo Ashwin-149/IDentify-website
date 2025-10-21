@@ -25,7 +25,9 @@ login_manager.login_view = 'admin_login'
 supabase: Client = create_client(app.config['SUPABASE_URL'], app.config['SUPABASE_KEY'])
 
 # Create uploads directory
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+import tempfile
+app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
+# os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 class AdminUser(UserMixin):
     def __init__(self, row):
