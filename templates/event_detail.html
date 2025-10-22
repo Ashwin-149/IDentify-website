@@ -74,6 +74,21 @@
           </form>
         </div>
 
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <a class="btn btn-outline-info btn-sm"
+             href="{{ url_for('admin_view_event_logs', event_id=event.id) }}">
+            <i class="bi bi-list-ul"></i> View event logs
+          </a>
+          <form method="post"
+                action="{{ url_for('admin_reset_event_logs_by_event', event_id=event.id) }}"
+                class="m-0 p-0"
+                onsubmit="return confirm('Reset logs for this event? This cannot be undone.');">
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+              <i class="bi bi-trash"></i> Reset event logs
+            </button>
+          </form>
+        </div>
+
       {% endif %}
     </div>
 

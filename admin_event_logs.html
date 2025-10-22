@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<h4>Logs – {{ event.title }}</h4>
+<div class="mb-2">
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('event_detail', slug=event.slug) }}">Back</a>
+  <form method="post"
+        action="{{ url_for('admin_reset_event_logs_by_event', event_id=event.id) }}"
+        class="d-inline m-0 p-0"
+        onsubmit="return confirm('Reset logs for this event? This cannot be undone.');">
+    <button class="btn btn-outline-danger btn-sm" type="submit">
+      <i class="bi bi-trash"></i> Reset logs for this event
+    </button>
+  </form>
+</div>
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Reg No.</th>
+        <th>UID</th>
+        <th>Status</th>
+        <th>Notes</th>
+        <th>Scanned At</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ log.reg_number or '-' }}</td>
+        <td>{{ log.uid or '-' }}</td>
+        <td>
+          <span class="badge {{ 'bg-success' if log.status=='ok' else 'bg-secondary' }}">{{ log.status or '-' }}</span>
+        </td>
+        <td>{{ log.notes or '-' }}</td>
+        <td>{{ log.scanned_at }}</td>
+      </tr>
+      {% endfor %}
+      {% if logs|length == 0 %}
+      <tr><td colspan="6" class="text-muted">No logs yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -20,5 +20,6 @@ class Config:
     REMEMBER_COOKIE_DURATION = timedelta(days=7)  # if you use remember=True at login
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
+    DEVICE_TOKEN = "RFID"
     # In production:
     # SESSION_COOKIE_SECURE = True

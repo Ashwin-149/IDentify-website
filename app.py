@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, make_response, Blueprint
 from werkzeug.utils import secure_filename
 from datetime import timezone, timedelta
 import pandas as pd
@@ -870,6 +870,136 @@ def admin_export_regs_csv(event_id):
     resp.headers['Content-Disposition'] = f'attachment; filename=registrations_event_{event_id}.csv'
     return resp
 
+@app.post('/admin/logs/events/reset')
+@login_required
+def admin_reset_event_logs():
+    try:
+        supabase.table('event_scan_logs').delete().neq('id', 0).execute()
+        flash('All event logs reset', 'success')
+    except Exception as e:
+        flash(f'Error resetting event logs: {e}', 'error')
+    return redirect(request.headers.get('Referer') or url_for('admin_events'))
+
+@app.post('/admin/events/<int:event_id>/logs/reset')
+@login_required
+def admin_reset_event_logs_by_event(event_id):
+    try:
+        supabase.table('event_scan_logs').delete().eq('event_id', event_id).execute()
+        flash('Event logs reset for this event', 'success')
+    except Exception as e:
+        flash(f'Error resetting logs: {e}', 'error')
+    return redirect(request.headers.get('Referer') or url_for('admin_events'))
+
+@app.get('/admin/events/<int:event_id>/logs')
+@login_required
+def admin_view_event_logs(event_id):
+    ev = supabase.table('events').select('id,title,slug').eq('id', event_id).single().execute().data
+    if not ev:
+        flash('Event not found', 'error')
+        return redirect(url_for('admin_events'))
+    logs = supabase.table('event_scan_logs') \
+        .select('id,event_id,reg_number,uid,scanned_at,status,notes') \
+        .eq('event_id', event_id) \
+        .order('scanned_at', desc=True) \
+        .execute().data or []
+    return render_template('admin_event_logs.html', event=ev, logs=logs)
+
+
+api = Blueprint('api', __name__)
+
+def bad(msg, code=400):
+    return jsonify({"ok": False, "message": msg}), code
+DEVICE_TOKEN = "RFID"
+@api.post('/api/v1/event/scan')
+def event_scan():
+    # 1) Token check
+    token = request.headers.get('X-Device-Token', '')
+    if token != DEVICE_TOKEN:
+        return bad("Unauthorized", 401)
+
+    # 2) JSON body
+    data = request.get_json(silent=True) or {}
+    try:
+        event_id = int(str(data.get('event_id')).strip())
+    except Exception:
+        event_id = None
+    uid = (data.get('uid') or '').strip()
+    reg_number = (data.get('reg_number') or '').strip()
+
+    if not event_id or not uid:
+        return bad("event_id and uid are required", 422)
+
+    # 3) Fetch event and validate (list-first to avoid PGRST116)
+    ev_res = supabase.table('events') \
+        .select('id,is_active,start_at,end_at,title') \
+        .eq('id', event_id).execute()
+    ev_rows = ev_res.data or []
+    ev = ev_rows[0] if ev_rows else None
+
+    if not ev:
+        return bad("Event not found", 404)
+    if not ev.get('is_active', False):
+        return bad("Event inactive", 403)
+
+    student_name = ""
+
+    # 4) Try resolve reg_number from uid if missing (list-first)
+    if not reg_number:
+        card_res = supabase.table('registered_cards') \
+            .select('reg_number,student_name,is_active') \
+            .eq('card_uid', uid).execute()
+        card_rows = card_res.data or []
+        if card_rows and (card_rows[0].get('is_active', False)):
+            reg_number = (card_rows[0].get('reg_number') or '').strip()
+            student_name = (card_rows[0].get('student_name') or '').strip()
+        else:
+            reg_number = ""
+            student_name = ""
+    else:
+        # Optional: get name for friendly response by reg_number
+        card_res = supabase.table('registered_cards') \
+            .select('student_name').eq('reg_number', reg_number).execute()
+        card_rows = card_res.data or []
+        if card_rows:
+            student_name = (card_rows[0].get('student_name') or '').strip()
+
+    # 5) Check registration for this event (use your actual columns)
+    # Your registrations table columns: id, event_id, reg_number, name, email, status, registered_at
+    registered = False
+    if reg_number:
+        reg_res = supabase.table('event_registrations_user') \
+            .select('id,name,email,status') \
+            .eq('event_id', event_id) \
+            .eq('reg_number', reg_number) \
+            .eq('status', 'registered') \
+            .execute()
+        reg_rows = reg_res.data or []
+        if reg_rows:
+            registered = True
+            if not student_name:
+                student_name = (reg_rows[0].get('name') or '').strip()
+
+    # 6) Log scan (write even for denied to keep full audit trail)
+    status = "ok" if registered else "denied"
+    try:
+        supabase.table('authentication_logs').insert({
+            "event_id": event_id,
+            "reg_number": reg_number,
+            "uid": uid,
+            "status": status,
+            "notes": "" if registered else "not registered",
+            # scanned_at: leave to DB default now() or add utc timestamp here
+        }).execute()
+    except Exception:
+        # Do not fail the scan decision if logging fails; you may want to capture this elsewhere
+        pass
+
+    # 7) Respond
+    if registered:
+        return jsonify({"ok": True, "name": student_name, "message": "Welcome"}), 200
+    else:
+        return jsonify({"ok": False, "message": "Not registered"}), 200
+
 # @app.route('/api/event_count')
 # def event_count():
 #     """API endpoint to get event registration count"""
@@ -891,6 +1021,6 @@ def admin_export_regs_csv(event_id):
 #         print(f"Error getting student count: {e}")
 #         return jsonify({'count': 0})
 
-
+app.register_blueprint(api)
 if __name__ == '__main__':
     app.run(debug=True)
