@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ event.title }} – Event Logs</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 20px; }
+    h1 { margin-bottom: 0.25rem; }
+    .meta { color: #555; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 14px; }
+    th { text-align: left; background: #f7f7f7; }
+    .ok { color: #0a7a0a; font-weight: 600; }
+    .denied { color: #b00020; font-weight: 600; }
+    .toolbar { margin-bottom: 12px; }
+    .btn { display: inline-block; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; color: #222; background: #fff; }
+    .btn-danger { border-color: #b00020; color: #b00020; }
+    .empty { color: #777; padding: 12px 0; }
+  </style>
+</head>
+<body>
+  <h1>Event Logs</h1>
+  <div class="meta">
+    <div>Event: <strong>{{ event.title }}</strong> (ID {{ event.id }})</div>
+  </div>
+
+  <div class="toolbar">
+    <a class="btn" href="{{ url_for('admin_events') }}">&larr; Back to Events</a>
+    <form style="display:inline" method="post" action="{{ url_for('admin_reset_event_logs_by_event', event_id=event.id) }}" onsubmit="return confirm('Reset logs for this event?')">
+      <button class="btn btn-danger" type="submit">Reset Logs</button>
+    </form>
+  </div>
+
+  {% if logs and logs|length %}
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>UID</th>
+          <th>Reg. No.</th>
+          <th>Status</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in logs %}
+        <tr>
+          <td>{{ row.scanned_at }}</td>
+          <td>{{ row.uid }}</td>
+          <td>{{ row.reg_number }}</td>
+          <td class="{{ 'ok' if row.status == 'ok' else 'denied' }}">{{ row.status }}</td>
+          <td>{{ row.notes }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty">No logs yet.</div>
+  {% endif %}
+</body>
+</html>
