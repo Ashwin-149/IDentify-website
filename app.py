@@ -910,6 +910,8 @@ api = Blueprint('api', __name__)
 def bad(msg, code=400):
     return jsonify({"ok": False, "message": msg}), code
 DEVICE_TOKEN = "RFID"
+
+
 @api.post('/api/v1/event/scan')
 def event_scan():
     # 1) Token check
@@ -929,7 +931,7 @@ def event_scan():
     if not event_id or not uid:
         return bad("event_id and uid are required", 422)
 
-    # 3) Fetch event and validate (list-first to avoid PGRST116)
+    # 3) Fetch event (list-first)
     ev_res = supabase.table('events') \
         .select('id,is_active,start_at,end_at,title') \
         .eq('id', event_id).execute()
@@ -937,13 +939,16 @@ def event_scan():
     ev = ev_rows[0] if ev_rows else None
 
     if not ev:
+        # log denied: event not found
+        _log_scan(event_id, "", uid, "denied", "event not found")
         return bad("Event not found", 404)
     if not ev.get('is_active', False):
+        # log denied: inactive
+        _log_scan(event_id, "", uid, "denied", "event inactive")
         return bad("Event inactive", 403)
 
+    # 4) Resolve reg_number/name from uid if missing
     student_name = ""
-
-    # 4) Try resolve reg_number from uid if missing (list-first)
     if not reg_number:
         card_res = supabase.table('registered_cards') \
             .select('reg_number,student_name,is_active') \
@@ -955,16 +960,16 @@ def event_scan():
         else:
             reg_number = ""
             student_name = ""
+
     else:
-        # Optional: get name for friendly response by reg_number
+        # Optional friendly name by reg_number
         card_res = supabase.table('registered_cards') \
             .select('student_name').eq('reg_number', reg_number).execute()
-        card_rows = card_res.data or []
-        if card_rows:
-            student_name = (card_rows[0].get('student_name') or '').strip()
+        cr = (card_res.data or [])
+        if cr:
+            student_name = (cr[0].get('student_name') or '').strip()
 
-    # 5) Check registration for this event (use your actual columns)
-    # Your registrations table columns: id, event_id, reg_number, name, email, status, registered_at
+    # 5) Check registration for this event
     registered = False
     if reg_number:
         reg_res = supabase.table('event_registrations_user') \
@@ -979,47 +984,29 @@ def event_scan():
             if not student_name:
                 student_name = (reg_rows[0].get('name') or '').strip()
 
-    # 6) Log scan (write even for denied to keep full audit trail)
+    # 6) Log scan (event_scan_logs)
     status = "ok" if registered else "denied"
-    try:
-        supabase.table('authentication_logs').insert({
-            "event_id": event_id,
-            "reg_number": reg_number,
-            "uid": uid,
-            "status": status,
-            "notes": "" if registered else "not registered",
-            # scanned_at: leave to DB default now() or add utc timestamp here
-        }).execute()
-    except Exception:
-        # Do not fail the scan decision if logging fails; you may want to capture this elsewhere
-        pass
+    notes  = "" if registered else ("not registered" if reg_number else "card not registered")
+    _log_scan(event_id, reg_number, uid, status, notes)
 
-    # 7) Respond
+    # 7) Respond (include reg_number so device can show/log it)
     if registered:
-        return jsonify({"ok": True, "name": student_name, "message": "Welcome"}), 200
+        return jsonify({"ok": True, "name": student_name, "reg_number": reg_number, "message": "Welcome"}), 200
     else:
-        return jsonify({"ok": False, "message": "Not registered"}), 200
+        return jsonify({"ok": False, "reg_number": reg_number, "message": "Not registered"}), 200
 
-# @app.route('/api/event_count')
-# def event_count():
-#     """API endpoint to get event registration count"""
-#     try:
-#         result = supabase.rpc('get_event_count').execute()
-#         return jsonify({'count': result.data})
-#     except Exception as e:
-#         print(f"Error getting event count: {e}")
-#         return jsonify({'count': 0})
-#
-#
-# @app.route('/api/student_count')
-# def student_count():
-#     """API endpoint to get student count"""
-#     try:
-#         result = supabase.rpc('get_student_count').execute()
-#         return jsonify({'count': result.data})
-#     except Exception as e:
-#         print(f"Error getting student count: {e}")
-#         return jsonify({'count': 0})
+
+def _log_scan(event_id, reg_number, uid, status, notes=""):
+    try:
+        supabase.table('event_scan_logs').insert({
+            "event_id": event_id,
+            "reg_number": reg_number or "",
+            "uid": uid,
+            "status": status,           # 'ok' or 'denied'
+            "notes": notes or "",
+        }).execute()
+    except Exception as e:
+        app.logger.exception(f"scan log insert failed: {e}")
 
 app.register_blueprint(api)
 if __name__ == '__main__':
