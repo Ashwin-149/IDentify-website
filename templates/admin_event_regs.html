@@ -1,45 +1,66 @@
 {% extends "base.html" %}
+{% block title %}Registrations – {{ event.title }}{% endblock %}
+
 {% block content %}
-<h4>Registrations – {{ event.title }}</h4>
-<div class="mb-3">
+<div class="d-flex align-items-center mb-3">
+  <h4 class="mb-0">Registrations – {{ event.title }}</h4>
+  <span class="ms-3 text-muted">ID {{ event.id }}</span>
+</div>
+
+<div class="mb-3 d-flex gap-2">
   <a class="btn btn-outline-secondary btn-sm"
      href="{{ url_for('event_detail', slug=event.slug) }}">
-    Back
+    <i class="bi bi-arrow-left"></i> Back
   </a>
-  <a class="btn btn-outline-success btn-sm" href="{{ url_for('admin_export_regs_csv', event_id=event.id) }}">Export CSV</a>
+  <a class="btn btn-outline-success btn-sm"
+     href="{{ url_for('admin_export_regs_csv', event_id=event.id) }}">
+    <i class="bi bi-download"></i> Export CSV
+  </a>
 </div>
-<div class="table-responsive">
-  <table class="table table-sm align-middle">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Reg No.</th>
-      <th>Name</th>
-      <th>Email</th>
-      <th>Status</th>
-      <th>Registered At</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for r in regs %}
-    <tr>
-      <td>{{ loop.index }}</td>
-      <td>{{ r.reg_number or '-' }}</td>
-      <td>{{ r.name or '-' }}</td>
-      <td>{{ r.email or '-' }}</td>
-      <td>
-        <span class="badge {{ 'bg-success' if r.status=='registered' else 'bg-secondary' }}">
-          {{ r.status }}
-        </span>
-      </td>
-      <td>{{ r.registered_at }}</td>
-    </tr>
-    {% endfor %}
-    {% if regs|length == 0 %}
-    <tr><td colspan="6" class="text-muted">No registrations yet.</td></tr>
-    {% endif %}
-  </tbody>
-</table>
 
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:3em;">#</th>
+            <th>Reg No.</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Registered At</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in regs %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+            <td><span class="badge bg-secondary">{{ r.reg_number or '-' }}</span></td>
+            <td>{{ r.name or '-' }}</td>
+            <td><code class="text-primary">{{ r.email or '-' }}</code></td>
+            <td>
+              <span class="badge
+                {% if r.status == 'registered' %}bg-success
+                {% elif r.status == 'cancelled' %}bg-danger
+                {% else %}bg-secondary{% endif %}">
+                {{ r.status|capitalize }}
+              </span>
+            </td>
+            <td class="text-nowrap"><small class="text-muted">{{ r.registered_at[:19].replace('T',' ') if r.registered_at else '' }}</small></td>
+          </tr>
+          {% endfor %}
+          {% if regs|length == 0 %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">
+              <i class="bi bi-person-x display-6 d-block mb-2"></i>
+              <div>No registrations yet.</div>
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 {% endblock %}
