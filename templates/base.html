@@ -27,11 +27,6 @@
         </li>
           {% if current_user.is_authenticated %}
             <li class="nav-item">
-              <a class="nav-link" href="{{ url_for('event_upload') }}">
-                <i class="bi bi-upload"></i> Event Upload
-              </a>
-            </li>
-            <li class="nav-item">
               <a class="nav-link" href="{{ url_for('scan_logs') }}">
                 <i class="bi bi-list-ul"></i> Scan Logs
               </a>
@@ -63,9 +58,6 @@
             <i class="bi bi-box-arrow-in-right"></i> Login
           </a>
         {% else %}
-          <a class="btn btn-outline-light btn-sm" href="{{ url_for('admin_events') }}">
-            <i class="bi bi-speedometer2"></i> Admin
-          </a>
           <a class="btn btn-outline-light btn-sm" href="{{ url_for('admin_register_form') }}">
             <i class="bi bi-person-plus"></i> Register Admin
           </a>

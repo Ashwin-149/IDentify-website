@@ -35,13 +35,6 @@
       </li>
         {% if current_user.is_authenticated %}
       <li class="nav-item">
-        <a href="{{ url_for('event_upload') }}"
-           class="nav-link {{ 'active' if request.endpoint == 'event_upload' else '' }}"
-           {{ 'aria-current=\"page\"' if request.endpoint == 'event_upload' else '' }}>
-          <i class="bi bi-upload"></i> Event Upload
-        </a>
-      </li>
-      <li class="nav-item">
         <a href="{{ url_for('scan_logs') }}"
            class="nav-link {{ 'active' if request.endpoint == 'scan_logs' else '' }}"
            {{ 'aria-current=\"page\"' if request.endpoint == 'scan_logs' else '' }}>

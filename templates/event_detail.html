@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ event.title }} · IDentify{% endblock %}
+
 {% block content %}
 <a class="text-decoration-none" href="{{ url_for('events_list') }}">
   <i class="bi bi-arrow-left"></i> Back to Events
@@ -9,8 +10,17 @@
   <div class="col-12 col-lg-7">
     <div class="card shadow-sm">
       {% if event.cover_url %}
-      <img src="{{ event.cover_url }}" class="card-img-top" alt="cover">
+
+      <img
+        src="{{ event.cover_url }}"
+        class="card-img-top"
+        alt="cover"
+        style="cursor: zoom-in; object-fit: cover;"
+        data-bs-toggle="modal"
+        data-bs-target="#imageModal"
+      >
       {% endif %}
+
       <div class="card-body">
         <h3 class="card-title">{{ event.title }}</h3>
         <p class="text-muted mb-1">
@@ -24,9 +34,13 @@
         {% if event.capacity %}
         <p><span class="badge bg-info text-dark">Capacity: {{ registered_count }}/{{ event.capacity }}</span></p>
         {% endif %}
-        <hr>
-        <div>{{ event.description|safe }}</div>
 
+        <hr>
+
+        <!-- Description container; any image inside will open the zoom modal -->
+        <div id="event-content" style="line-height: 1.6;">
+          {{ event.description|safe }}
+        </div>
       </div>
     </div>
   </div>
@@ -52,6 +66,7 @@
         </form>
       </div>
     </div>
+
     <div>
       {% if current_user.is_authenticated %}
         <hr class="mt-4">
@@ -65,6 +80,7 @@
              href="{{ url_for('admin_export_regs_csv', event_id=event.id) }}">
             <i class="bi bi-file-earmark-spreadsheet"></i> Export to Excel
           </a>
+
           <form method="post"
                 action="{{ url_for('admin_delete_event_by_slug', slug=event.slug) }}"
                 onsubmit="return confirm('Delete this event? This cannot be undone.');">
@@ -88,10 +104,53 @@
             </button>
           </form>
         </div>
-
       {% endif %}
     </div>
-
   </div>
 </div>
+
+<!-- Image zoom modal (reused for banner and any description images) -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content bg-transparent border-0">
+      <button type="button" class="btn-close btn-close-white ms-auto me-2 mt-2" data-bs-dismiss="modal" aria-label="Close"></button>
+      <div class="modal-body p-0 d-flex justify-content-center">
+        <img id="zoomedImg" class="img-fluid rounded shadow" style="max-height: 90vh;" alt="Zoomed image">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Light JS to wire up click-to-zoom for description images and banner -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const zoomImgEl = document.getElementById('zoomedImg');
+    const modalEl = document.getElementById('imageModal');
+    const zoomModal = new bootstrap.Modal(modalEl);
+
+    // 1) Banner click: Bootstrap data attributes already open modal.
+    //    Set banner into zoomedImg when modal opens if triggered by banner.
+    const banner = document.querySelector('.card-img-top[alt="cover"]');
+    if (banner) {
+      banner.addEventListener('click', function() {
+        zoomImgEl.src = banner.getAttribute('src');
+      });
+    }
+
+    // 2) Any image inside description
+    const content = document.getElementById('event-content');
+    if (content) {
+      content.addEventListener('click', function(e) {
+        const t = e.target;
+        if (t && t.tagName === 'IMG') {
+          zoomImgEl.src = t.getAttribute('src');
+          zoomModal.show();
+        }
+      });
+      // Cursor hint for images inside description
+      const imgs = content.querySelectorAll('img');
+      imgs.forEach(img => { img.style.cursor = 'zoom-in'; });
+    }
+  });
+</script>
 {% endblock %}

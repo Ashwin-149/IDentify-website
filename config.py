@@ -8,8 +8,6 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here'
     SUPABASE_URL = os.environ.get('SUPABASE_URL') or 'https://your-project-id.supabase.co'
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY') or 'your-anon-key'
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or 'admin123'
-    EVENT_PASSWORD = os.environ.get('EVENT_PASSWORD') or 'event123'
     UPLOAD_FOLDER = 'uploads'
     EVENTS_BUCKET = "events"  # storage bucket name
     ADMIN_REGISTRATION_CODE = os.environ.get('ADMIN_REGISTRATION_CODE') or 'RFID'
@@ -21,5 +19,4 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     DEVICE_TOKEN = "RFID"
-    # In production:
-    # SESSION_COOKIE_SECURE = True
+

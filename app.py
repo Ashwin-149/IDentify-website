@@ -115,7 +115,6 @@ def pretty_dt(s: str) -> str:
     s = s.strip()
     dt = None
 
-    # 1) Normalize common ISO variants
     try:
         # Handle trailing Z (UTC)
         if s.endswith('Z'):
@@ -125,7 +124,6 @@ def pretty_dt(s: str) -> str:
     except ValueError:
         pass
 
-    # 2) Try datetime-local formats
     if dt is None:
         for fmt in ("%Y-%m-%dT%H:%M",
                     "%Y-%m-%dT%H:%M:%S",
@@ -137,7 +135,6 @@ def pretty_dt(s: str) -> str:
             except ValueError:
                 continue
 
-    # 3) Try ISO with milliseconds by trimming fractional seconds if present
     if dt is None and '.' in s:
         try:
             s2 = s
@@ -161,16 +158,14 @@ def pretty_dt(s: str) -> str:
         # Last resort: show as-is so you can spot unexpected formats
         return s
 
-    # 4) Convert to local tz for display
     if dt.tzinfo is None:
         dt_local = dt.replace(tzinfo=LOCAL_TZ)
     else:
         dt_local = dt.astimezone(LOCAL_TZ)
 
-    # 5) Cross-platform 12h hour without leading zero
     hour_fmt = "%-I"  # Unix
     try:
-        # Some Windows builds error on %-I
+
         _ = dt_local.strftime(hour_fmt)
     except Exception:
         hour_fmt = "%#I"  # Windows
@@ -207,9 +202,6 @@ def index():
 @nocache
 @login_required
 def admin_register_form():
-    # prevent showing register if already logged in
-    if current_user.is_authenticated:
-        return redirect(url_for('admin_events'))
     return render_template('admin_register.html')
 
 @app.post('/admin/register')
@@ -221,12 +213,12 @@ def admin_register():
     password = request.form.get('password') or ''
     confirm = request.form.get('confirm_password') or ''
 
-    # Check secret code
+
     if secret != app.config.get('ADMIN_REGISTRATION_CODE'):
         flash('Invalid registration code.', 'error')
         return redirect(url_for('admin_register_form'))
 
-    # Basic validation
+
     if not EMAIL_RE.match(email):
         flash('Please enter a valid email.', 'error')
         return redirect(url_for('admin_register_form'))
@@ -237,17 +229,14 @@ def admin_register():
         flash('Passwords do not match.', 'error')
         return redirect(url_for('admin_register_form'))
 
-    # Ensure unique email
     try:
         existing = supabase.table('admin_users').select('id').eq('email', email).single().execute().data
         if existing:
             flash('An admin with this email already exists.', 'error')
             return redirect(url_for('admin_register_form'))
     except Exception:
-        # If select throws because not found, continue
         pass
 
-    # Insert new admin with hashed password
     try:
         pwd_hash = generate_password_hash(password)
         res = supabase.table('admin_users').insert({
@@ -256,7 +245,6 @@ def admin_register():
             'is_active': True
         }).execute()
         row = res.data[0]
-        # Auto-login after registration (optional)
         user = AdminUser(row)
         login_user(user, remember=True)
         flash('Admin account created and logged in.', 'success')
@@ -302,120 +290,17 @@ def admin_logout():
     resp.delete_cookie('remember_token', path='/', samesite='Lax')
     return resp
 
-@app.route('/event_upload', methods=['GET', 'POST'])
-@login_required
-def event_upload():
-    """Event upload page - upload Excel with reg numbers"""
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            flash('No file selected!', 'error')
-            return render_template('event_upload.html')
-
-        file = request.files['file']
-        if file.filename == '':
-            flash('No file selected!', 'error')
-            return render_template('event_upload.html')
-
-        if file and (file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
-            try:
-                # Read Excel file
-                df = pd.read_excel(file)
-
-                # Assume first column contains registration numbers
-                reg_numbers = df.iloc[:, 0].astype(str).tolist()
-
-                # Clear existing event registrations
-                supabase.table('event_registrations').delete().neq('id', 0).execute()
-
-                # Insert new registrations
-                registrations = [{'reg_number': reg_num, 'uploaded_at': datetime.now().isoformat()}
-                                 for reg_num in reg_numbers if pd.notna(reg_num)]
-
-                if registrations:
-                    supabase.table('event_registrations').insert(registrations).execute()
-                    flash(f'Successfully uploaded {len(registrations)} registration numbers!', 'success')
-                else:
-                    flash('No valid registration numbers found in file!', 'error')
-
-            except Exception as e:
-                flash(f'Error processing file: {str(e)}', 'error')
-        else:
-            flash('Please upload an Excel file (.xlsx or .xls)', 'error')
-
-    # Get current registrations
-    try:
-        result = supabase.table('event_registrations').select('*').order('uploaded_at', desc=True).execute()
-        registrations = result.data
-    except:
-        registrations = []
-
-    return render_template('event_upload.html', registrations=registrations)
-
-
-@app.route('/clear_event_data', methods=['POST'])
-@login_required
-@nocache
-def clear_event_data():
-    """Clear event registration data (admin only)"""
-    try:
-        supabase.table('event_registrations').delete().neq('id', 0).execute()
-        flash('Event registration data cleared successfully!', 'success')
-    except Exception as e:
-        flash(f'Error clearing data: {str(e)}', 'error')
-
-    return redirect(url_for('event_upload'))
-
-
-@app.route('/edit_registration', methods=['POST'])
-@login_required
-@nocache
-def edit_registration():
-    """Edit individual registration number"""
-    registration_id = request.form.get('registration_id')
-    new_reg_number = request.form.get('reg_number')
-
-    try:
-        supabase.table('event_registrations').update({
-            'reg_number': new_reg_number
-        }).eq('id', registration_id).execute()
-        flash('Registration number updated successfully!', 'success')
-    except Exception as e:
-        flash(f'Error updating registration: {str(e)}', 'error')
-
-    return redirect(url_for('event_upload'))
-
-
-@app.route('/delete_registration', methods=['POST'])
-@login_required
-@nocache
-def delete_registration():
-    """Delete individual registration"""
-    registration_id = request.form.get('registration_id')
-
-    try:
-        supabase.table('event_registrations').delete().eq('id', registration_id).execute()
-        flash('Registration deleted successfully!', 'success')
-    except Exception as e:
-        flash(f'Error deleting registration: {str(e)}', 'error')
-
-    return redirect(url_for('event_upload'))
-
 
 @app.route('/scan_logs')
 @login_required
 @nocache
 def scan_logs():
-    """View scan logs - separate for lost & found and event entry"""
+    """View scan logs for lost"""
     try:
         # Get lost & found logs
         lost_found_result = supabase.table('lost_found_logs').select('*').order('scanned_at', desc=True).limit(
             100).execute()
         lost_found_logs = lost_found_result.data
-
-        # Get authentication logs (you might need to create this table)
-        auth_result = supabase.table('authentication_logs').select('*').order('scanned_at', desc=True).limit(
-            100).execute()
-        auth_logs = auth_result.data
 
     except Exception as e:
         flash(f'Error fetching logs: {str(e)}', 'error')
@@ -424,7 +309,7 @@ def scan_logs():
 
     return render_template('scan_logs.html',
                            lost_found_logs=lost_found_logs,
-                           auth_logs=auth_logs)
+                           )
 
 
 @app.route('/admit_upload', methods=['GET', 'POST'])
@@ -606,14 +491,13 @@ def admin_events():
 @login_required
 @nocache
 def admin_create_event():
-    # 1) Read form fields
     title = (request.form.get('title') or '').strip()
     description = (request.form.get('description') or '').strip()
     start_at = (request.form.get('start_at') or '').strip()
     end_at = (request.form.get('end_at') or '').strip()
     location = (request.form.get('location') or '').strip()
     capacity = request.form.get('capacity')
-    cover_url = (request.form.get('cover_url') or '').strip()
+    cover_file = request.files.get('cover_file')
 
     if not title:
         flash('Title is required', 'error')
@@ -625,7 +509,31 @@ def admin_create_event():
     except Exception:
         cap_val = None
 
-    # 2) Create the event first
+    uploaded_cover_url = None
+    if cover_file and cover_file.filename.strip():
+        filename = secure_filename(cover_file.filename)
+        if not is_allowed_image(filename):
+            flash('Banner must be an image (png, jpg, webp, gif).', 'error')
+            return redirect(url_for('admin_events'))
+        try:
+            content = cover_file.read()
+            if not content:
+                flash('Uploaded banner is empty.', 'error')
+                return redirect(url_for('admin_events'))
+            # Store under a folder by slug
+            store_path = f"{slug}/banner{os.path.splitext(filename)[1].lower()}"
+            uploaded_cover_url = upload_to_supabase_storage(
+                app.config['EVENTS_BUCKET'],  # ensure this is set in Config
+                store_path,
+                content,
+                cover_file.mimetype or 'application/octet-stream'
+            )
+        except Exception as e:
+            flash(f'Banner upload failed: {e}', 'error')
+            return redirect(url_for('admin_events'))
+
+    cover_url = uploaded_cover_url or ""
+
     try:
         ins = supabase.table('events').insert({
             'title': title,
@@ -648,7 +556,6 @@ def admin_create_event():
         flash(f'Error creating event: {e}', 'error')
         return redirect(url_for('admin_events'))
 
-    # 3) Process image uploads
     files = request.files.getlist('images')
     print(f"[upload] received files: {len(files)}")
     appended_html = ""
@@ -742,24 +649,17 @@ def admin_toggle_event(event_id):
 @login_required
 def admin_delete_event(event_id):
     try:
-        # Optional: fetch for storage cleanup
         ev = supabase.table('events').select('id, slug').eq('id', event_id).single().execute().data
         if not ev:
             flash('Event not found', 'error')
             return redirect(url_for('admin_events'))
 
-        # Optional storage cleanup under slug/ if you track files or can list by folder
-        # storage = supabase.storage.from_(app.config['EVENTS_BUCKET'])
-        # files = storage.list(path=ev['slug'])  # if client supports listing
-        # storage.remove([f"{ev['slug']}/{f['name']}" for f in files])
-
-        # Delete event row (ensure event_images has ON DELETE CASCADE if used)
         supabase.table('events').delete().eq('id', event_id).execute()
         flash('Event deleted', 'success')
     except Exception as e:
         flash(f'Error deleting event: {e}', 'error')
 
-    # Redirect back where the request came from
+
     referer = request.headers.get('Referer') or url_for('admin_events')
     return redirect(referer)
 
@@ -805,7 +705,7 @@ def admin_edit_event(event_id):
         flash('Title is required', 'error')
         return redirect(url_for('admin_edit_event_form', event_id=event_id))
 
-    # Optional: enforce slug uniqueness if changed
+
     if slug:
         existing = supabase.table('events').select('id').eq('slug', slug).neq('id', event_id).execute().data or []
         if existing:
@@ -820,7 +720,7 @@ def admin_edit_event(event_id):
     if slug:
         update_data['slug'] = slug
     if start_at:
-        update_data['start_at'] = start_at  # keep same storage format you already use
+        update_data['start_at'] = start_at
     if end_at:
         update_data['end_at'] = end_at
 
@@ -914,12 +814,10 @@ DEVICE_TOKEN = "RFID"
 
 @api.post('/api/v1/event/scan')
 def event_scan():
-    # 1) Token check
     token = request.headers.get('X-Device-Token', '')
     if token != DEVICE_TOKEN:
         return bad("Unauthorized", 401)
 
-    # 2) JSON body
     data = request.get_json(silent=True) or {}
     try:
         event_id = int(str(data.get('event_id')).strip())
@@ -931,7 +829,6 @@ def event_scan():
     if not event_id or not uid:
         return bad("event_id and uid are required", 422)
 
-    # 3) Fetch event (list-first)
     ev_res = supabase.table('events') \
         .select('id,is_active,start_at,end_at,title') \
         .eq('id', event_id).execute()
@@ -939,15 +836,12 @@ def event_scan():
     ev = ev_rows[0] if ev_rows else None
 
     if not ev:
-        # log denied: event not found
         _log_scan(event_id, "", uid, "denied", "event not found")
         return bad("Event not found", 404)
     if not ev.get('is_active', False):
-        # log denied: inactive
         _log_scan(event_id, "", uid, "denied", "event inactive")
         return bad("Event inactive", 403)
 
-    # 4) Resolve reg_number/name from uid if missing
     student_name = ""
     if not reg_number:
         card_res = supabase.table('registered_cards') \
@@ -960,7 +854,6 @@ def event_scan():
         else:
             reg_number = ""
             student_name = ""
-
     else:
         # Optional friendly name by reg_number
         card_res = supabase.table('registered_cards') \
@@ -969,7 +862,6 @@ def event_scan():
         if cr:
             student_name = (cr[0].get('student_name') or '').strip()
 
-    # 5) Check registration for this event
     registered = False
     if reg_number:
         reg_res = supabase.table('event_registrations_user') \
@@ -984,17 +876,14 @@ def event_scan():
             if not student_name:
                 student_name = (reg_rows[0].get('name') or '').strip()
 
-    # 6) Log scan (event_scan_logs)
     status = "ok" if registered else "denied"
     notes  = "" if registered else ("not registered" if reg_number else "card not registered")
     _log_scan(event_id, reg_number, uid, status, notes)
 
-    # 7) Respond (include reg_number so device can show/log it)
     if registered:
         return jsonify({"ok": True, "name": student_name, "reg_number": reg_number, "message": "Welcome"}), 200
     else:
         return jsonify({"ok": False, "reg_number": reg_number, "message": "Not registered"}), 200
-
 
 def _log_scan(event_id, reg_number, uid, status, notes=""):
     try:

@@ -42,8 +42,8 @@
             <input name="images" type="file" class="form-control" accept="image/*" multiple>
           </div>
           <div class="mb-3">
-            <label class="form-label">Cover URL (optional)</label>
-            <input name="cover_url" class="form-control" placeholder="https://...">
+            <label class="form-label">Cover image (optional)</label>
+            <input class="form-control" type="file" name="cover_file" accept=".png,.jpg,.jpeg,.webp,.gif">
           </div>
           <button type="submit" class="btn btn-primary w-100">Create</button>
         </form>
@@ -60,7 +60,6 @@
             <thead>
               <tr>
                 <th>Title</th>
-<!--                <th>When</th>-->
                 <th>Active</th>
                 <th>Actions</th>
               </tr>
@@ -69,7 +68,6 @@
               {% for e in events %}
               <tr>
                 <td>{{ e.title }}</td>
-<!--                <td>{{ e.start_pretty }}{% if e.end_pretty %} → {{ e.end_pretty }}{% endif %}</td>-->
                 <td>
                   <span class="badge {{ 'bg-success' if e.is_active else 'bg-secondary' }}">
                     {{ 'Yes' if e.is_active else 'No' }}
