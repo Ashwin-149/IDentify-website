@@ -2,9 +2,19 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-12">
-        <h2><i class="bi bi-list-ul"></i> Scan Logs</h2>
-        <p class="text-muted">View RFID scan activity logs for Lost & Found </p>
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2><i class="bi bi-list-ul"></i> Scan Logs</h2>
+            <p class="text-muted">View RFID scan activity logs for Lost & Found</p>
+        </div>
+        <!-- Reset button (only visible to authenticated users) -->
+        {% if current_user.is_authenticated %}
+        <div>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#resetModal">
+                <i class="bi bi-trash"></i> Reset Logs
+            </button>
+        </div>
+        {% endif %}
     </div>
 </div>
 
@@ -16,12 +26,6 @@
             <span class="badge bg-danger ms-1">{{ lost_found_logs|length }}</span>
         </button>
     </li>
-<!--    <li class="nav-item" role="presentation">-->
-<!--        <button class="nav-link" id="auth-tab" data-bs-toggle="tab" data-bs-target="#auth-logs" type="button" role="tab">-->
-<!--            <i class="bi bi-shield-check"></i> Authentication Logs-->
-<!--            <span class="badge bg-success ms-1">{{ auth_logs|length }}</span>-->
-<!--        </button>-->
-<!--    </li>-->
 </ul>
 
 <div class="tab-content" id="logTabsContent">
@@ -87,4 +91,32 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Reset Confirmation Modal -->
+<div class="modal fade" id="resetModal" tabindex="-1" aria-labelledby="resetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="resetModalLabel">
+                    <i class="bi bi-exclamation-triangle"></i> Reset Lost & Found Logs
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Are you sure you want to delete all Lost & Found scan logs?</p>
+                <p class="text-danger fw-bold">This action cannot be undone!</p>
+                <p class="text-muted small">Total logs to delete: <strong>{{ lost_found_logs|length }}</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="post" action="{{ url_for('admin_reset_lost_found_logs') }}" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Yes, Reset Logs
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

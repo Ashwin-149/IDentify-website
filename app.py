@@ -566,6 +566,17 @@ def scan_logs():
         lost_found_logs = []
     return render_template('scan_logs.html', lost_found_logs=lost_found_logs)
 
+@app.post('/admin/logs/lost-found/reset')
+@login_required
+def admin_reset_lost_found_logs():
+    """Reset all lost & found logs."""
+    try:
+        supabase.table('lost_found_logs').delete().neq('id', 0).execute()
+        flash('All Lost & Found logs have been reset', 'success')
+    except Exception as e:
+        flash(f'Error resetting logs: {e}', 'error')
+    return redirect(url_for('scan_logs'))
+
 @app.post('/admin/logs/events/reset')
 @login_required
 def admin_reset_event_logs():
